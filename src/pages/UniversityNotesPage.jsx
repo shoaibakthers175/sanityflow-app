@@ -15,18 +15,22 @@ import {
   Edit3, 
   Save, 
   X, 
-  Search,
-  Sparkles,
-  Info,
-  Layers,
-  Lock,
-  Wifi,
-  CopyPlus,
-  Star,
-  FileText,
-  HelpCircle,
-  CheckCircle2,
-  Settings
+  Search, 
+  Sparkles, 
+  Info, 
+  Layers, 
+  Lock, 
+  Wifi, 
+  CopyPlus, 
+  Star, 
+  FileText, 
+  HelpCircle, 
+  CheckCircle2, 
+  Settings,
+  Maximize2,
+  Minimize2,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -64,6 +68,17 @@ export default function UniversityNotesPage() {
   // Copied state for tooltips
   const [copiedKey, setCopiedKey] = useState(null);
 
+  // Full Screen / Popup Reader Modal state
+  const [readerModal, setReaderModal] = useState({
+    isOpen: false,
+    title: '',
+    subtitle: '',
+    content: '',
+    type: 'notes' // 'notes' | 'warning' | 'full'
+  });
+  const [readerSearchQuery, setReaderSearchQuery] = useState('');
+  const [readerFontSize, setReaderFontSize] = useState('normal'); // 'normal' | 'large' | 'xl'
+
   // Modals
   const [showAddUniModal, setShowAddUniModal] = useState(false);
   const [newUniName, setNewUniName] = useState('');
@@ -84,6 +99,21 @@ export default function UniversityNotesPage() {
   // New prereq form inside editor
   const [newPrereqText, setNewPrereqText] = useState('');
   const [showAddPrereq, setShowAddPrereq] = useState(false);
+
+  // Close reader on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (readerModal.isOpen) {
+          setReaderModal(prev => ({ ...prev, isOpen: false }));
+        }
+        if (showAddUniModal) setShowAddUniModal(false);
+        if (showDeleteConfirm) setShowDeleteConfirm(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [readerModal.isOpen, showAddUniModal, showDeleteConfirm]);
 
   // Load templates strictly for active vertical without loop dependencies
   const loadTemplates = useCallback(async (preserveId = null) => {
@@ -203,6 +233,32 @@ export default function UniversityNotesPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Open Full Notes Reader Popup
+  const handleOpenNotesReader = () => {
+    const currentNotes = isEditing ? editGuidelines.additionalNotes : (activeTemplate?.guidelines?.additionalNotes || '');
+    setReaderSearchQuery('');
+    setReaderModal({
+      isOpen: true,
+      title: `${activeTemplate?.name || 'University'} - Testing Notes & Architecture Knowledge`,
+      subtitle: `Full reader view for ${currentVerticalDef.label} testing suite`,
+      content: currentNotes || 'No additional testing notes written yet. Click "Edit University Notes" to add instructions.',
+      type: 'notes'
+    });
+  };
+
+  // Open Warnings Reader Popup
+  const handleOpenWarningsReader = () => {
+    const currentWarnings = isEditing ? editGuidelines.importantNotes : (activeTemplate?.guidelines?.importantNotes || '');
+    setReaderSearchQuery('');
+    setReaderModal({
+      isOpen: true,
+      title: `${activeTemplate?.name || 'University'} - Critical Testing Rules & Warnings`,
+      subtitle: `Essential compliance & safety precautions for QA testers`,
+      content: currentWarnings || 'No critical warnings specified for this university suite.',
+      type: 'warning'
+    });
   };
 
   // Create new university suite
@@ -840,6 +896,19 @@ export default function UniversityNotesPage() {
           <span className="text-xs font-extrabold uppercase tracking-wider text-surface-600 dark:text-surface-400 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-500" /> Critical Testing Rules & Warnings
           </span>
+
+          {/* Expand Warning Button */}
+          {!isEditing && g.importantNotes && (
+            <button
+              type="button"
+              onClick={handleOpenWarningsReader}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-bold transition-colors cursor-pointer"
+              title="Open full text in popup"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>Expand Warning</span>
+            </button>
+          )}
         </div>
 
         {isEditing ? (
@@ -851,7 +920,13 @@ export default function UniversityNotesPage() {
             className="w-full text-xs p-3 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-surface-100 leading-relaxed"
           />
         ) : (
-          <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-medium">
+          <div 
+            onClick={g.importantNotes ? handleOpenWarningsReader : undefined}
+            className={`p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-medium ${
+              g.importantNotes ? 'cursor-pointer hover:border-amber-400 transition-colors' : ''
+            }`}
+            title={g.importantNotes ? 'Click to open full popup' : ''}
+          >
             {g.importantNotes || 'No critical warnings specified for this university suite.'}
           </div>
         )}
@@ -859,35 +934,57 @@ export default function UniversityNotesPage() {
 
       {/* General University Testing Notes & Knowledge Base */}
       <div className="p-6 rounded-3xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 shadow-sm flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-brand-500" />
             <h3 className="text-sm font-extrabold text-surface-900 dark:text-white">
               University Specific Testing Notes & Architecture Knowledge
             </h3>
           </div>
-          <span className="text-[11px] text-surface-400 font-medium">
-            Refer before initiating sanity runs
-          </span>
+
+          <div className="flex items-center gap-2">
+            {/* Open Full Popup Button */}
+            <button
+              type="button"
+              onClick={handleOpenNotesReader}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400 text-xs font-bold transition-colors cursor-pointer"
+              title="Open full notes in large readable popup"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>Open Full Text Popup</span>
+            </button>
+          </div>
         </div>
 
         {isEditing ? (
           <div className="flex flex-col gap-2">
             <textarea
-              rows={5}
+              rows={6}
               value={editGuidelines.additionalNotes}
               onChange={(e) => setEditGuidelines({ ...editGuidelines, additionalNotes: e.target.value })}
               placeholder="Add comprehensive notes for testers (e.g. Special sandbox tokens, course IDs to test, expected payment gateway behavior, API endpoints, etc.)..."
               className="w-full text-xs p-3.5 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-surface-100 leading-relaxed font-mono"
             />
             <p className="text-[10px] text-surface-400">
-              💡 Tip: Include environment quirks, sample IDs, discount coupon codes, or specific instructions for QA leads.
+              💡 Tip: Write detailed notes freely. Testers can click "Open Full Text Popup" to read in fullscreen anytime.
             </p>
           </div>
         ) : (
-          <div className="p-4 rounded-2xl bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 text-xs text-surface-800 dark:text-surface-200 leading-relaxed whitespace-pre-line">
+          <div 
+            onClick={handleOpenNotesReader}
+            className="group relative p-4 rounded-2xl bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 text-xs text-surface-800 dark:text-surface-200 leading-relaxed whitespace-pre-line cursor-pointer hover:border-brand-500/50 hover:bg-brand-50/20 dark:hover:bg-brand-950/10 transition-all max-h-56 overflow-hidden"
+            title="Click to expand into full popup"
+          >
             {g.additionalNotes ? (
-              g.additionalNotes
+              <>
+                <div>{g.additionalNotes}</div>
+                {/* Fade overlay on long text with prompt */}
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface-50 dark:from-surface-950 to-transparent flex items-end justify-center pb-2 pointer-events-none group-hover:from-brand-50/40 dark:group-hover:from-surface-900">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white dark:bg-surface-800 text-[11px] font-bold text-brand-600 dark:text-brand-400 shadow-sm border border-surface-200 dark:border-surface-700">
+                    <Maximize2 className="w-3 h-3" /> Click to read full notes in popup
+                  </span>
+                </div>
+              </>
             ) : (
               <span className="text-surface-400 italic">
                 No extra testing notes added yet for {activeTemplate?.name}. Click "Edit University Notes" above to add detailed instructions.
@@ -1165,6 +1262,132 @@ export default function UniversityNotesPage() {
           )}
         </div>
       </div>
+
+      {/* --- FULL SCREEN / POPUP READER MODAL --- */}
+      {readerModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+          <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-surface-900 rounded-3xl border border-surface-200 dark:border-surface-800 shadow-2xl flex flex-col overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-surface-200 dark:border-surface-800 bg-surface-50/70 dark:bg-surface-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                  readerModal.type === 'warning' 
+                    ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' 
+                    : 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20'
+                }`}>
+                  {readerModal.type === 'warning' ? <AlertTriangle className="w-6 h-6" /> : <BookOpen className="w-6 h-6" />}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-extrabold text-surface-900 dark:text-white truncate">
+                      {readerModal.title}
+                    </h3>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${currentVerticalDef.badgeColor}`}>
+                      {currentVerticalDef.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">
+                    {readerModal.subtitle}
+                  </p>
+                </div>
+              </div>
+
+              {/* Reader Controls */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Font Size Adjusters */}
+                <div className="flex items-center bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl p-0.5 text-xs">
+                  <button
+                    onClick={() => setReaderFontSize('normal')}
+                    className={`px-2 py-1 rounded-lg font-bold transition-colors ${
+                      readerFontSize === 'normal' ? 'bg-brand-500/10 text-brand-600' : 'text-surface-500 hover:text-surface-900'
+                    }`}
+                    title="Normal font size"
+                  >
+                    A
+                  </button>
+                  <button
+                    onClick={() => setReaderFontSize('large')}
+                    className={`px-2 py-1 rounded-lg font-bold text-sm transition-colors ${
+                      readerFontSize === 'large' ? 'bg-brand-500/10 text-brand-600' : 'text-surface-500 hover:text-surface-900'
+                    }`}
+                    title="Large font size"
+                  >
+                    A+
+                  </button>
+                  <button
+                    onClick={() => setReaderFontSize('xl')}
+                    className={`px-2 py-1 rounded-lg font-bold text-base transition-colors ${
+                      readerFontSize === 'xl' ? 'bg-brand-500/10 text-brand-600' : 'text-surface-500 hover:text-surface-900'
+                    }`}
+                    title="Extra large font size"
+                  >
+                    A++
+                  </button>
+                </div>
+
+                {/* Copy Button */}
+                <button
+                  onClick={() => handleCopy(readerModal.content, 'reader-content')}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:text-brand-600 text-xs font-bold transition-colors cursor-pointer"
+                  title="Copy full text"
+                >
+                  {copiedKey === 'reader-content' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedKey === 'reader-content' ? 'Copied' : 'Copy'}</span>
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => setReaderModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-2 rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-400 hover:text-surface-900 dark:hover:text-white transition-colors cursor-pointer"
+                  title="Close popup (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Search inside reader */}
+            <div className="px-6 py-2.5 bg-surface-100/50 dark:bg-surface-950/40 border-b border-surface-200/80 dark:border-surface-800 flex items-center gap-2">
+              <Search className="w-4 h-4 text-surface-400" />
+              <input
+                type="text"
+                value={readerSearchQuery}
+                onChange={(e) => setReaderSearchQuery(e.target.value)}
+                placeholder="Search keywords within notes..."
+                className="w-full text-xs bg-transparent border-none focus:outline-none text-surface-900 dark:text-surface-100 placeholder-surface-400"
+              />
+              {readerSearchQuery && (
+                <button
+                  onClick={() => setReaderSearchQuery('')}
+                  className="text-xs text-surface-400 hover:text-surface-600 p-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Scrollable Reader Content Body */}
+            <div className="p-6 sm:p-8 overflow-y-auto max-h-[calc(90vh-170px)] select-text">
+              <div className={`leading-relaxed text-surface-800 dark:text-surface-100 whitespace-pre-line font-sans ${
+                readerFontSize === 'xl' ? 'text-base sm:text-lg' : readerFontSize === 'large' ? 'text-sm sm:text-base' : 'text-xs sm:text-sm'
+              }`}>
+                {readerModal.content}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-surface-50/90 dark:bg-surface-950/90 border-t border-surface-200 dark:border-surface-800 flex items-center justify-between text-xs text-surface-500">
+              <span>Press <kbd className="px-1.5 py-0.5 bg-surface-200 dark:bg-surface-800 rounded font-mono text-[10px]">Esc</kbd> to exit reader view</span>
+              <button
+                onClick={() => setReaderModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-1.5 rounded-xl bg-brand-600 text-white font-bold text-xs hover:bg-brand-500 cursor-pointer shadow-sm"
+              >
+                Done Reading
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- ADD UNIVERSITY MODAL --- */}
       {showAddUniModal && (
