@@ -1,0 +1,22 @@
+services:
+  # Option 1: Static Site (Recommended & Free on Render)
+  - type: web
+    name: sanityflow-web
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # Option 2: Node.js Web Service
+  # - type: web
+  #   name: sanityflow-service
+  #   env: node
+  #   plan: free
+  #   buildCommand: npm install && npm run build
+  #   startCommand: npm run start:web
+  #   envVars:
+  #     - key: NODE_VERSION
+  #       value: 20
