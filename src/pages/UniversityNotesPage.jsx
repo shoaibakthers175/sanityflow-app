@@ -36,6 +36,54 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { StorageService, VERTICAL_DEFINITIONS } from '../utils/storage';
 
+// Helper component to highlight search keyword matches in text
+function HighlightedText({ text, query, className = '' }) {
+  if (!text) return null;
+  const str = String(text);
+  if (!query || !query.trim()) {
+    return <span className={className}>{str}</span>;
+  }
+
+  try {
+    const sanitizedQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${sanitizedQuery})`, 'gi');
+    const parts = str.split(regex);
+
+    return (
+      <span className={className}>
+        {parts.map((part, index) => {
+          if (part.toLowerCase() === query.trim().toLowerCase()) {
+            return (
+              <mark
+                key={index}
+                className="bg-amber-300 dark:bg-amber-400 text-amber-950 font-black px-1 py-0.5 rounded shadow-xs"
+              >
+                {part}
+              </mark>
+            );
+          }
+          return <span key={index}>{part}</span>;
+        })}
+      </span>
+    );
+  } catch {
+    return <span className={className}>{str}</span>;
+  }
+}
+
+// Helper to count matches
+function countMatches(text, query) {
+  if (!text || !query || !query.trim()) return 0;
+  try {
+    const sanitizedQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(sanitizedQuery, 'gi');
+    const matches = String(text).match(regex);
+    return matches ? matches.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export default function UniversityNotesPage() {
   const { user, activeVertical, setActiveVertical } = useAuth();
   const { showToast } = useToast();
@@ -445,6 +493,9 @@ export default function UniversityNotesPage() {
     );
   });
 
+  // Calculate search matches count for reader modal
+  const readerMatchesCount = countMatches(readerModal.content, readerSearchQuery);
+
   return (
     <div className="p-8 max-w-6xl mx-auto flex flex-col gap-6 animate-fade-in">
       {/* Top Header */}
@@ -605,7 +656,7 @@ export default function UniversityNotesPage() {
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base font-extrabold text-surface-900 dark:text-white truncate">
-                  {activeTemplate?.name}
+                  <HighlightedText text={activeTemplate?.name} query={searchQuery} />
                 </h2>
                 {activeTemplate?.is_default ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-500/20 text-brand-600 dark:text-brand-400 border border-brand-500/30">
@@ -621,7 +672,7 @@ export default function UniversityNotesPage() {
                 )}
               </div>
               <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5 truncate">
-                {activeTemplate?.description || 'QA Sanity verification guidelines and credentials'}
+                <HighlightedText text={activeTemplate?.description || 'QA Sanity verification guidelines and credentials'} query={searchQuery} />
               </p>
             </div>
           )}
@@ -660,15 +711,24 @@ export default function UniversityNotesPage() {
             </div>
           )}
 
-          <div className="relative w-full sm:w-56">
+          <div className="relative w-full sm:w-64">
             <Search className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search logins & notes..."
-              className="w-full text-xs pl-8 pr-3 py-1.5 rounded-xl bg-white dark:bg-surface-950 border border-surface-200 dark:border-surface-700 focus:outline-none focus:ring-2 focus:ring-brand-500 text-surface-900 dark:text-surface-100 placeholder-surface-400"
+              placeholder="Search & highlight notes..."
+              className="w-full text-xs pl-8 pr-7 py-1.5 rounded-xl bg-white dark:bg-surface-950 border border-surface-200 dark:border-surface-700 focus:outline-none focus:ring-2 focus:ring-brand-500 text-surface-900 dark:text-surface-100 placeholder-surface-400"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 p-0.5"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -778,7 +838,7 @@ export default function UniversityNotesPage() {
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-mono font-bold text-surface-900 dark:text-white truncate">
-                    {g.devUrl || 'Not configured'}
+                    <HighlightedText text={g.devUrl || 'Not configured'} query={searchQuery} />
                   </span>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {g.devUrl && (
@@ -815,7 +875,7 @@ export default function UniversityNotesPage() {
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 truncate">
-                    {g.venusUrl || g.stagingUrl || 'Not configured'}
+                    <HighlightedText text={g.venusUrl || g.stagingUrl || 'Not configured'} query={searchQuery} />
                   </span>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {(g.venusUrl || g.stagingUrl) && (
@@ -852,7 +912,7 @@ export default function UniversityNotesPage() {
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 truncate">
-                    {g.prodUrl || 'Not configured'}
+                    <HighlightedText text={g.prodUrl || 'Not configured'} query={searchQuery} />
                   </span>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {g.prodUrl && (
@@ -883,7 +943,7 @@ export default function UniversityNotesPage() {
             {g.vpnRequired && g.vpnNotes && (
               <div className="flex items-start gap-2 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 font-medium">
                 <Wifi className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span><strong>VPN Access Note:</strong> {g.vpnNotes}</span>
+                <span><strong>VPN Access Note:</strong> <HighlightedText text={g.vpnNotes} query={searchQuery} /></span>
               </div>
             )}
           </div>
@@ -927,7 +987,11 @@ export default function UniversityNotesPage() {
             }`}
             title={g.importantNotes ? 'Click to open full popup' : ''}
           >
-            {g.importantNotes || 'No critical warnings specified for this university suite.'}
+            {g.importantNotes ? (
+              <HighlightedText text={g.importantNotes} query={searchQuery} />
+            ) : (
+              'No critical warnings specified for this university suite.'
+            )}
           </div>
         )}
       </div>
@@ -977,7 +1041,9 @@ export default function UniversityNotesPage() {
           >
             {g.additionalNotes ? (
               <>
-                <div>{g.additionalNotes}</div>
+                <div>
+                  <HighlightedText text={g.additionalNotes} query={searchQuery} />
+                </div>
                 {/* Fade overlay on long text with prompt */}
                 <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface-50 dark:from-surface-950 to-transparent flex items-end justify-center pb-2 pointer-events-none group-hover:from-brand-50/40 dark:group-hover:from-surface-900">
                   <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white dark:bg-surface-800 text-[11px] font-bold text-brand-600 dark:text-brand-400 shadow-sm border border-surface-200 dark:border-surface-700">
@@ -1089,7 +1155,7 @@ export default function UniversityNotesPage() {
                       />
                     ) : (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
-                        {acc.role || 'QA Role'}
+                        <HighlightedText text={acc.role || 'QA Role'} query={searchQuery} />
                       </span>
                     )}
                   </div>
@@ -1118,7 +1184,7 @@ export default function UniversityNotesPage() {
                       />
                     ) : (
                       <span className="text-surface-700 dark:text-surface-300 truncate font-semibold">
-                        {acc.username}
+                        <HighlightedText text={acc.username} query={searchQuery} />
                       </span>
                     )}
                     <button
@@ -1165,7 +1231,7 @@ export default function UniversityNotesPage() {
                 ) : (
                   acc.notes && (
                     <p className="text-[11px] text-surface-500 dark:text-surface-400 italic">
-                      {acc.notes}
+                      <HighlightedText text={acc.notes} query={searchQuery} />
                     </p>
                   )
                 )}
@@ -1240,7 +1306,7 @@ export default function UniversityNotesPage() {
                     {idx + 1}
                   </span>
                   <span className="text-xs font-medium text-surface-800 dark:text-surface-200">
-                    {req}
+                    <HighlightedText text={req} query={searchQuery} />
                   </span>
                 </div>
 
@@ -1263,7 +1329,7 @@ export default function UniversityNotesPage() {
         </div>
       </div>
 
-      {/* --- FULL SCREEN / POPUP READER MODAL --- */}
+      {/* --- FULL SCREEN / POPUP READER MODAL WITH KEYWORD HIGHLIGHTING --- */}
       {readerModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-surface-900 rounded-3xl border border-surface-200 dark:border-surface-800 shadow-2xl flex flex-col overflow-hidden animate-scale-in">
@@ -1346,32 +1412,46 @@ export default function UniversityNotesPage() {
               </div>
             </div>
 
-            {/* Quick Search inside reader */}
-            <div className="px-6 py-2.5 bg-surface-100/50 dark:bg-surface-950/40 border-b border-surface-200/80 dark:border-surface-800 flex items-center gap-2">
-              <Search className="w-4 h-4 text-surface-400" />
-              <input
-                type="text"
-                value={readerSearchQuery}
-                onChange={(e) => setReaderSearchQuery(e.target.value)}
-                placeholder="Search keywords within notes..."
-                className="w-full text-xs bg-transparent border-none focus:outline-none text-surface-900 dark:text-surface-100 placeholder-surface-400"
-              />
+            {/* Quick Search inside reader with live match counter & highlight */}
+            <div className="px-6 py-2.5 bg-surface-100/50 dark:bg-surface-950/40 border-b border-surface-200/80 dark:border-surface-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <Search className="w-4 h-4 text-brand-500 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={readerSearchQuery}
+                  onChange={(e) => setReaderSearchQuery(e.target.value)}
+                  placeholder="Type keyword to highlight text within notes..."
+                  autoFocus
+                  className="w-full text-xs bg-transparent border-none focus:outline-none text-surface-900 dark:text-surface-100 placeholder-surface-400 font-medium"
+                />
+              </div>
+
               {readerSearchQuery && (
-                <button
-                  onClick={() => setReaderSearchQuery('')}
-                  className="text-xs text-surface-400 hover:text-surface-600 p-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    readerMatchesCount > 0 
+                      ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30' 
+                      : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
+                  }`}>
+                    {readerMatchesCount > 0 ? `${readerMatchesCount} ${readerMatchesCount === 1 ? 'match' : 'matches'}` : '0 matches'}
+                  </span>
+                  <button
+                    onClick={() => setReaderSearchQuery('')}
+                    className="text-xs text-surface-400 hover:text-surface-600 p-0.5"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
             </div>
 
-            {/* Scrollable Reader Content Body */}
+            {/* Scrollable Reader Content Body with Live Highlight */}
             <div className="p-6 sm:p-8 overflow-y-auto max-h-[calc(90vh-170px)] select-text">
               <div className={`leading-relaxed text-surface-800 dark:text-surface-100 whitespace-pre-line font-sans ${
                 readerFontSize === 'xl' ? 'text-base sm:text-lg' : readerFontSize === 'large' ? 'text-sm sm:text-base' : 'text-xs sm:text-sm'
               }`}>
-                {readerModal.content}
+                <HighlightedText text={readerModal.content} query={readerSearchQuery} />
               </div>
             </div>
 
