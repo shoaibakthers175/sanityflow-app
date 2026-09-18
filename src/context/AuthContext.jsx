@@ -54,7 +54,29 @@ export function AuthProvider({ children }) {
       }
       return result;
     } else {
-      // Browser preview mode fallback matching seeded vertical users
+      // Real-time Centralized Server Login for multi-device sync
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: trimmedUser, password: trimmedPass })
+        });
+        if (res.ok) {
+          const apiResult = await res.json();
+          if (apiResult.success) {
+            setUser(apiResult.user);
+            setActiveVertical(apiResult.user.vertical || 'acquisition');
+            if (rememberMe) localStorage.setItem('sanityflow_user', JSON.stringify(apiResult.user));
+            return { success: true, user: apiResult.user };
+          } else {
+            return apiResult;
+          }
+        }
+      } catch (err) {
+        // Fallback to local check if offline
+      }
+
+      // Offline fallback matching seeded vertical users
       const allUsers = await StorageService.getAllUsers();
       const found = allUsers.find(u => u.username.toLowerCase() === trimmedUser.toLowerCase());
       

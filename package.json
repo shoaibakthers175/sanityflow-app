@@ -4,13 +4,13 @@
   "description": "SanityFlow - Desktop QA Sanity Checklist Manager",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k \"node server.js\" \"vite\"",
     "build": "vite build",
     "preview": "vite preview",
     "start": "electron .",
     "start:web": "node server.js",
     "serve": "node server.js",
-    "app:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\""
+    "app:dev": "concurrently -k \"node server.js\" \"vite\" \"wait-on tcp:5173 && electron .\""
   },
   "keywords": [
     "qa",

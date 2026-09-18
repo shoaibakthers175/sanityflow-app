@@ -6,7 +6,6 @@ import {
   Trash2, 
   ArrowUp, 
   ArrowDown, 
-  RotateCcw, 
   Save, 
   Sparkles, 
   Download, 
@@ -327,21 +326,6 @@ export default function SettingsPage() {
     const orderedIds = items.map(i => i.id);
     await StorageService.reorderTemplateItems(currentTemplate.id, sectionId, orderedIds);
     await loadTemplates(currentTemplate.id);
-  };
-
-  // Reset to default templates (scoped to active/selected vertical)
-  const handleResetDefaults = async () => {
-    const scopeLabel = effectiveVertical && effectiveVertical !== 'all' 
-      ? effectiveVertical.toUpperCase() 
-      : 'ALL VERTICALS';
-    if (!confirm(`Reset ${scopeLabel} University Templates and Section Headers to default packages? Edits in other verticals will NOT be affected.`)) return;
-    try {
-      await StorageService.resetToDefaultUniversityTemplates(effectiveVertical === 'all' ? '' : effectiveVertical);
-      showToast(`Reset ${scopeLabel} templates to defaults!`, 'success');
-      await loadTemplates();
-    } catch (err) {
-      showToast('Error resetting defaults: ' + err.message, 'error');
-    }
   };
 
   // Export JSON
@@ -691,15 +675,6 @@ export default function SettingsPage() {
               </button>
 
               <button
-                onClick={handleResetDefaults}
-                title="Restore default templates"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 text-xs font-bold transition-colors cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Defaults</span>
-              </button>
-
-              <button
                 onClick={() => setShowNewUniModal(true)}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md shadow-brand-600/20 transition-all active:scale-95 cursor-pointer"
               >
@@ -804,12 +779,6 @@ export default function SettingsPage() {
                   className="px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-bold shadow-md hover:bg-brand-500 cursor-pointer"
                 >
                   Create New Template
-                </button>
-                <button
-                  onClick={handleResetDefaults}
-                  className="px-4 py-2 rounded-xl bg-surface-200 dark:bg-surface-800 text-surface-700 dark:text-surface-300 text-xs font-bold hover:bg-surface-300 cursor-pointer"
-                >
-                  Restore Defaults
                 </button>
               </div>
             </div>

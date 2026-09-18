@@ -2,6 +2,9 @@
  * Unified persistent storage for SanityFlow.
  * Supports Multi-Vertical Isolation (Acquisition, LMS, Exam Portal, ERP)
  * and University-Specific Templates with hierarchical Section Headers.
+ * 
+ * In Desktop Electron mode: communicates with SQLite via window.api IPC.
+ * In Web / Multi-Laptop mode: communicates in real-time with centralized REST API (/api/...) on the server.
  */
 
 export const VERTICAL_DEFINITIONS = [
@@ -246,7 +249,7 @@ export const DEFAULT_UNIVERSITY_TEMPLATES = [
   }
 ];
 
-// Helper functions for Web Fallback Mode (localStorage)
+// Helper functions for Offline Web Fallback Mode (localStorage)
 function getLocalSessions() {
   const data = localStorage.getItem('sanityflow_sessions');
   return data ? JSON.parse(data) : [];
@@ -292,11 +295,36 @@ function saveLocalUsers(users) {
   localStorage.setItem('sanityflow_users_list', JSON.stringify(users));
 }
 
+// HTTP Fetch wrapper for real-time multi-device server synchronization
+async function apiFetch(endpoint, options = {}) {
+  try {
+    const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    // Network offline / fallback to local storage
+  }
+  return null;
+}
+
 export const StorageService = {
   // --- ADMIN USER MANAGEMENT ---
   async getAllUsers() {
     if (window.api && window.api.users) {
       return await window.api.users.getAll();
+    }
+    const apiRes = await apiFetch('/api/users');
+    if (apiRes && Array.isArray(apiRes)) {
+      saveLocalUsers(apiRes);
+      return apiRes;
     }
     return getLocalUsers();
   },
@@ -304,6 +332,18 @@ export const StorageService = {
   async createUser(username, password, fullName, role = 'tester', vertical = 'acquisition') {
     if (window.api && window.api.users) {
       return await window.api.users.create(username, password, fullName, role, vertical);
+    }
+    const apiRes = await apiFetch('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, fullName, role, vertical })
+    });
+    if (apiRes) {
+      if (apiRes.success) {
+        const users = getLocalUsers();
+        users.push(apiRes.user);
+        saveLocalUsers(users);
+      }
+      return apiRes;
     }
     const users = getLocalUsers();
     if (users.find(u => u.username.toLowerCase() === username.trim().toLowerCase())) {
@@ -327,6 +367,11 @@ export const StorageService = {
     if (window.api && window.api.users) {
       return await window.api.users.update(numId, data);
     }
+    const apiRes = await apiFetch(`/api/users/${numId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (apiRes) return apiRes.success;
     const users = getLocalUsers();
     const idx = users.findIndex(u => u.id === numId);
     if (idx !== -1) {
@@ -341,6 +386,12 @@ export const StorageService = {
     const numId = Number(id);
     if (window.api && window.api.users) {
       return await window.api.users.delete(numId);
+    }
+    const apiRes = await apiFetch(`/api/users/${numId}`, { method: 'DELETE' });
+    if (apiRes) {
+      let users = getLocalUsers().filter(u => u.id !== numId);
+      saveLocalUsers(users);
+      return apiRes;
     }
     let users = getLocalUsers();
     const target = users.find(u => u.id === numId);
@@ -357,6 +408,12 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.getAll(vertical);
     }
+    const query = vertical && vertical !== 'all' ? `?vertical=${encodeURIComponent(vertical)}` : '';
+    const apiRes = await apiFetch(`/api/templates${query}`);
+    if (apiRes && Array.isArray(apiRes)) {
+      saveLocalUniversityTemplates(apiRes);
+      return apiRes;
+    }
     const templates = getLocalUniversityTemplates();
     if (vertical && vertical !== 'all') {
       return templates.filter(t => (t.vertical || 'acquisition').toLowerCase() === vertical.toLowerCase());
@@ -369,6 +426,10 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.getById(numId);
     }
+    const apiRes = await apiFetch(`/api/templates/${numId}`);
+    if (apiRes && apiRes.id) {
+      return apiRes;
+    }
     const templates = getLocalUniversityTemplates();
     return templates.find(t => t.id === numId) || null;
   },
@@ -376,6 +437,16 @@ export const StorageService = {
   async createUniversityTemplate(name, description = '', guidelines = null, vertical = 'acquisition') {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.create(name, description, guidelines, vertical);
+    }
+    const apiRes = await apiFetch('/api/templates', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, guidelines, vertical })
+    });
+    if (apiRes && apiRes.id) {
+      const templates = getLocalUniversityTemplates();
+      templates.push(apiRes);
+      saveLocalUniversityTemplates(templates);
+      return apiRes;
     }
     const templates = getLocalUniversityTemplates();
     const newTmpl = {
@@ -406,6 +477,16 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.duplicate(numId, newName);
     }
+    const apiRes = await apiFetch(`/api/templates/${numId}/duplicate`, {
+      method: 'POST',
+      body: JSON.stringify({ newName })
+    });
+    if (apiRes && apiRes.id) {
+      const templates = getLocalUniversityTemplates();
+      templates.push(apiRes);
+      saveLocalUniversityTemplates(templates);
+      return apiRes;
+    }
     const templates = getLocalUniversityTemplates();
     const source = templates.find(t => String(t.id) === String(id));
     if (!source) return null;
@@ -426,6 +507,11 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.update(numId, data);
     }
+    const apiRes = await apiFetch(`/api/templates/${numId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (apiRes) return apiRes.success;
     const templates = getLocalUniversityTemplates();
     const idx = templates.findIndex(t => String(t.id) === String(id));
     if (idx !== -1) {
@@ -445,6 +531,15 @@ export const StorageService = {
   },
 
   async updateUniversityGuidelines(id, guidelines) {
+    const numId = Number(id);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.updateGuidelines(numId, guidelines);
+    }
+    const apiRes = await apiFetch(`/api/templates/${numId}/guidelines`, {
+      method: 'PUT',
+      body: JSON.stringify({ guidelines })
+    });
+    if (apiRes) return apiRes.success;
     return this.updateUniversityTemplate(id, { guidelines });
   },
 
@@ -453,28 +548,16 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.delete(numId);
     }
+    const apiRes = await apiFetch(`/api/templates/${numId}`, { method: 'DELETE' });
+    if (apiRes) {
+      const templates = getLocalUniversityTemplates().filter(t => String(t.id) !== String(id));
+      saveLocalUniversityTemplates(templates);
+      return apiRes.success;
+    }
     const templates = getLocalUniversityTemplates();
     const filtered = templates.filter(t => String(t.id) !== String(id));
     saveLocalUniversityTemplates(filtered);
     return true;
-  },
-
-  async resetToDefaultUniversityTemplates(vertical = '') {
-    if (window.api && window.api.universityTemplates) {
-      return await window.api.universityTemplates.resetDefaults(vertical);
-    }
-    let templates = getLocalUniversityTemplates();
-    if (vertical && vertical !== 'all') {
-      templates = templates.filter(t => (t.vertical || 'acquisition').toLowerCase() !== vertical.toLowerCase());
-      const defaultForVert = DEFAULT_UNIVERSITY_TEMPLATES.find(t => (t.vertical || 'acquisition').toLowerCase() === vertical.toLowerCase());
-      if (defaultForVert) {
-        templates.push(JSON.parse(JSON.stringify(defaultForVert)));
-      }
-    } else {
-      templates = JSON.parse(JSON.stringify(DEFAULT_UNIVERSITY_TEMPLATES));
-    }
-    saveLocalUniversityTemplates(templates);
-    return this.getUniversityTemplates(vertical);
   },
 
   // --- TEMPLATE SECTIONS (HEADERS) CRUD ---
@@ -482,6 +565,13 @@ export const StorageService = {
     const numTmplId = Number(templateId);
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.addSection(numTmplId, title);
+    }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections`, {
+      method: 'POST',
+      body: JSON.stringify({ title })
+    });
+    if (apiRes && apiRes.id) {
+      return apiRes;
     }
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
@@ -510,6 +600,11 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.updateSection(numTmplId, numSecId, title);
     }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections/${numSecId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title })
+    });
+    if (apiRes) return apiRes.success;
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
     if (!tmpl || !tmpl.sections) return false;
@@ -532,6 +627,8 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.deleteSection(numTmplId, numSecId);
     }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections/${numSecId}`, { method: 'DELETE' });
+    if (apiRes) return apiRes.success;
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
     if (!tmpl || !tmpl.sections) return false;
@@ -549,6 +646,11 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.reorderSections(numTmplId, orderedSectionIds);
     }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections-reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ orderedSectionIds })
+    });
+    if (apiRes) return apiRes.success;
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
     if (!tmpl || !tmpl.sections) return false;
@@ -578,6 +680,13 @@ export const StorageService = {
     const numSecId = Number(sectionId);
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.addItem(numTmplId, numSecId, name, defaultNotes);
+    }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections/${numSecId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ name, defaultNotes })
+    });
+    if (apiRes && apiRes.id) {
+      return apiRes;
     }
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
@@ -610,6 +719,11 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.updateItem(numTmplId, numSecId, numItemId, name, defaultNotes);
     }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections/${numSecId}/items/${numItemId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, defaultNotes })
+    });
+    if (apiRes) return apiRes.success;
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
     if (!tmpl || !tmpl.sections) return false;
@@ -636,6 +750,8 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.deleteItem(numTmplId, numSecId, numItemId);
     }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections/${numSecId}/items/${numItemId}`, { method: 'DELETE' });
+    if (apiRes) return apiRes.success;
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
     if (!tmpl || !tmpl.sections) return false;
@@ -656,6 +772,11 @@ export const StorageService = {
     if (window.api && window.api.universityTemplates) {
       return await window.api.universityTemplates.reorderItems(numTmplId, numSecId, orderedItemIds);
     }
+    const apiRes = await apiFetch(`/api/templates/${numTmplId}/sections/${numSecId}/items-reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ orderedItemIds })
+    });
+    if (apiRes) return apiRes.success;
     const templates = getLocalUniversityTemplates();
     const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
     if (!tmpl || !tmpl.sections) return false;
@@ -685,6 +806,18 @@ export const StorageService = {
   async getSessions(searchQuery = '', dateFilter = '', statusFilter = 'ALL', vertical = '') {
     if (window.api && window.api.sessions) {
       return await window.api.sessions.getSessions(searchQuery, dateFilter, statusFilter, vertical);
+    }
+
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('search', searchQuery);
+    if (dateFilter) params.set('date', dateFilter);
+    if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter);
+    if (vertical && vertical !== 'all') params.set('vertical', vertical);
+
+    const apiRes = await apiFetch(`/api/sessions?${params.toString()}`);
+    if (apiRes && Array.isArray(apiRes)) {
+      saveLocalSessions(apiRes);
+      return apiRes;
     }
 
     let sessions = getLocalSessions();
@@ -733,6 +866,11 @@ export const StorageService = {
       return await window.api.sessions.getSessionById(numId);
     }
 
+    const apiRes = await apiFetch(`/api/sessions/${numId}`);
+    if (apiRes && apiRes.id) {
+      return apiRes;
+    }
+
     const sessions = getLocalSessions();
     const session = sessions.find(s => s.id === numId);
     if (!session) return null;
@@ -752,6 +890,17 @@ export const StorageService = {
   async createSession(projectName, testerName, environment, notes, universityTemplateId = null, vertical = null) {
     if (window.api && window.api.sessions) {
       return await window.api.sessions.createSession(projectName, testerName, environment, notes, universityTemplateId, vertical);
+    }
+
+    const apiRes = await apiFetch('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ projectName, testerName, environment, notes, universityTemplateId, vertical })
+    });
+    if (apiRes && apiRes.id) {
+      const sessions = getLocalSessions();
+      sessions.unshift(apiRes);
+      saveLocalSessions(sessions);
+      return apiRes;
     }
 
     const sessions = getLocalSessions();
@@ -805,6 +954,12 @@ export const StorageService = {
       return await window.api.sessions.updateSession(numId, data);
     }
 
+    const apiRes = await apiFetch(`/api/sessions/${numId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (apiRes) return apiRes.success;
+
     const sessions = getLocalSessions();
     const idx = sessions.findIndex(s => s.id === numId);
     if (idx !== -1) {
@@ -821,6 +976,13 @@ export const StorageService = {
       return await window.api.sessions.deleteSession(numId);
     }
 
+    const apiRes = await apiFetch(`/api/sessions/${numId}`, { method: 'DELETE' });
+    if (apiRes) {
+      const filtered = getLocalSessions().filter(s => s.id !== numId);
+      saveLocalSessions(filtered);
+      return apiRes.success;
+    }
+
     const sessions = getLocalSessions();
     const filtered = sessions.filter(s => s.id !== numId);
     saveLocalSessions(filtered);
@@ -831,6 +993,17 @@ export const StorageService = {
     const numId = Number(id);
     if (window.api && window.api.sessions) {
       return await window.api.sessions.duplicateSession(numId, newProjectName);
+    }
+
+    const apiRes = await apiFetch(`/api/sessions/${numId}/duplicate`, {
+      method: 'POST',
+      body: JSON.stringify({ newProjectName })
+    });
+    if (apiRes && apiRes.id) {
+      const sessions = getLocalSessions();
+      sessions.unshift(apiRes);
+      saveLocalSessions(sessions);
+      return apiRes;
     }
 
     const sessions = getLocalSessions();
@@ -878,6 +1051,12 @@ export const StorageService = {
       return await window.api.items.updateItem(numItemId, data);
     }
 
+    const apiRes = await apiFetch(`/api/items/${numItemId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (apiRes) return apiRes.success;
+
     const sessions = getLocalSessions();
     for (const session of sessions) {
       if (numSessionId && session.id !== numSessionId) continue;
@@ -899,6 +1078,14 @@ export const StorageService = {
 
     if (window.api && window.api.items) {
       return await window.api.items.addItem(numSessionId, itemName, sectionTitle, notes);
+    }
+
+    const apiRes = await apiFetch(`/api/sessions/${numSessionId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ itemName, sectionTitle, notes })
+    });
+    if (apiRes && apiRes.id) {
+      return apiRes;
     }
 
     const sessions = getLocalSessions();
@@ -945,6 +1132,9 @@ export const StorageService = {
       return await window.api.items.deleteItem(numItemId);
     }
 
+    const apiRes = await apiFetch(`/api/items/${numItemId}`, { method: 'DELETE' });
+    if (apiRes) return apiRes.success;
+
     const sessions = getLocalSessions();
     for (const session of sessions) {
       if (numSessionId && session.id !== numSessionId) continue;
@@ -965,6 +1155,12 @@ export const StorageService = {
   async getDashboardStats(vertical = '') {
     if (window.api && window.api.sessions) {
       return await window.api.sessions.getDashboardStats(vertical);
+    }
+
+    const query = vertical && vertical !== 'all' ? `?vertical=${encodeURIComponent(vertical)}` : '';
+    const apiRes = await apiFetch(`/api/stats${query}`);
+    if (apiRes && apiRes.totalProjects !== undefined) {
+      return apiRes;
     }
 
     let sessions = getLocalSessions();
