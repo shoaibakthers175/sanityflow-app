@@ -212,9 +212,7 @@ export default function SettingsPage() {
     if (!newSectionTitle.trim() || !currentTemplate) return;
 
     try {
-      if (window.api && window.api.universityTemplates) {
-        await window.api.universityTemplates.addSection(currentTemplate.id, newSectionTitle.trim());
-      }
+      await StorageService.addTemplateSection(currentTemplate.id, newSectionTitle.trim());
       showToast(`Section header "${newSectionTitle}" added!`, 'success');
       setNewSectionTitle('');
       setShowAddSection(false);
@@ -227,9 +225,7 @@ export default function SettingsPage() {
   const handleSaveSectionTitle = async (sectionId) => {
     if (!editSectionTitle.trim() || !currentTemplate) return;
     try {
-      if (window.api && window.api.universityTemplates) {
-        await window.api.universityTemplates.updateSection(currentTemplate.id, sectionId, editSectionTitle.trim());
-      }
+      await StorageService.updateTemplateSection(currentTemplate.id, sectionId, editSectionTitle.trim());
       showToast('Section title updated!', 'success');
       setEditingSectionId(null);
       await loadTemplates(currentTemplate.id);
@@ -241,9 +237,7 @@ export default function SettingsPage() {
   const handleDeleteSection = async (sectionId, title) => {
     if (!confirm(`Delete section "${title}" and all checks under it?`)) return;
     try {
-      if (window.api && window.api.universityTemplates) {
-        await window.api.universityTemplates.deleteSection(currentTemplate.id, sectionId);
-      }
+      await StorageService.deleteTemplateSection(currentTemplate.id, sectionId);
       showToast(`Deleted section "${title}"`, 'info');
       await loadTemplates(currentTemplate.id);
     } catch (err) {
@@ -262,9 +256,7 @@ export default function SettingsPage() {
     sections[targetIndex] = temp;
 
     const orderedIds = sections.map(s => s.id);
-    if (window.api && window.api.universityTemplates) {
-      await window.api.universityTemplates.reorderSections(currentTemplate.id, orderedIds);
-    }
+    await StorageService.reorderTemplateSections(currentTemplate.id, orderedIds);
     await loadTemplates(currentTemplate.id);
   };
 
@@ -274,14 +266,12 @@ export default function SettingsPage() {
     if (!newItemName.trim() || !currentTemplate) return;
 
     try {
-      if (window.api && window.api.universityTemplates) {
-        await window.api.universityTemplates.addItem(
-          currentTemplate.id,
-          sectionId,
-          newItemName.trim(),
-          newItemNotes.trim()
-        );
-      }
+      await StorageService.addTemplateItem(
+        currentTemplate.id,
+        sectionId,
+        newItemName.trim(),
+        newItemNotes.trim()
+      );
       showToast(`Check "${newItemName}" added!`, 'success');
       setNewItemName('');
       setNewItemNotes('');
@@ -295,15 +285,13 @@ export default function SettingsPage() {
   const handleSaveItem = async (sectionId, itemId) => {
     if (!editItemName.trim() || !currentTemplate) return;
     try {
-      if (window.api && window.api.universityTemplates) {
-        await window.api.universityTemplates.updateItem(
-          currentTemplate.id,
-          sectionId,
-          itemId,
-          editItemName.trim(),
-          editItemNotes.trim()
-        );
-      }
+      await StorageService.updateTemplateItem(
+        currentTemplate.id,
+        sectionId,
+        itemId,
+        editItemName.trim(),
+        editItemNotes.trim()
+      );
       showToast('Item updated!', 'success');
       setEditingItemId(null);
       await loadTemplates(currentTemplate.id);
@@ -315,9 +303,7 @@ export default function SettingsPage() {
   const handleDeleteItem = async (sectionId, itemId, name) => {
     if (!confirm(`Delete checklist check "${name}"?`)) return;
     try {
-      if (window.api && window.api.universityTemplates) {
-        await window.api.universityTemplates.deleteItem(currentTemplate.id, sectionId, itemId);
-      }
+      await StorageService.deleteTemplateItem(currentTemplate.id, sectionId, itemId);
       showToast('Item deleted', 'info');
       await loadTemplates(currentTemplate.id);
     } catch (err) {
@@ -339,9 +325,7 @@ export default function SettingsPage() {
     items[targetIndex] = temp;
 
     const orderedIds = items.map(i => i.id);
-    if (window.api && window.api.universityTemplates) {
-      await window.api.universityTemplates.reorderItems(currentTemplate.id, sectionId, orderedIds);
-    }
+    await StorageService.reorderTemplateItems(currentTemplate.id, sectionId, orderedIds);
     await loadTemplates(currentTemplate.id);
   };
 

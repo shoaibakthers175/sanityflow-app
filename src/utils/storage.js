@@ -477,6 +477,210 @@ export const StorageService = {
     return this.getUniversityTemplates(vertical);
   },
 
+  // --- TEMPLATE SECTIONS (HEADERS) CRUD ---
+  async addTemplateSection(templateId, title) {
+    const numTmplId = Number(templateId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.addSection(numTmplId, title);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl) return null;
+    if (!tmpl.sections) tmpl.sections = [];
+    const maxOrder = tmpl.sections.reduce((max, s) => Math.max(max, s.order_no || 0), 0);
+    const newSec = {
+      id: Date.now(),
+      template_id: tmpl.id,
+      title: title.trim(),
+      order_no: maxOrder + 1,
+      items: []
+    };
+    tmpl.sections.push(newSec);
+    saveLocalUniversityTemplates(templates);
+    return newSec;
+  },
+
+  async addSection(templateId, title) {
+    return this.addTemplateSection(templateId, title);
+  },
+
+  async updateTemplateSection(templateId, sectionId, title) {
+    const numTmplId = Number(templateId);
+    const numSecId = Number(sectionId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.updateSection(numTmplId, numSecId, title);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl || !tmpl.sections) return false;
+    const sec = tmpl.sections.find(s => Number(s.id) === numSecId || String(s.id) === String(sectionId));
+    if (sec) {
+      sec.title = title.trim();
+      saveLocalUniversityTemplates(templates);
+      return true;
+    }
+    return false;
+  },
+
+  async updateSection(templateId, sectionId, title) {
+    return this.updateTemplateSection(templateId, sectionId, title);
+  },
+
+  async deleteTemplateSection(templateId, sectionId) {
+    const numTmplId = Number(templateId);
+    const numSecId = Number(sectionId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.deleteSection(numTmplId, numSecId);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl || !tmpl.sections) return false;
+    tmpl.sections = tmpl.sections.filter(s => Number(s.id) !== numSecId && String(s.id) !== String(sectionId));
+    saveLocalUniversityTemplates(templates);
+    return true;
+  },
+
+  async deleteSection(templateId, sectionId) {
+    return this.deleteTemplateSection(templateId, sectionId);
+  },
+
+  async reorderTemplateSections(templateId, orderedSectionIds) {
+    const numTmplId = Number(templateId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.reorderSections(numTmplId, orderedSectionIds);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl || !tmpl.sections) return false;
+    const secMap = new Map(tmpl.sections.map(s => [String(s.id), s]));
+    const reordered = [];
+    orderedSectionIds.forEach((id, idx) => {
+      const s = secMap.get(String(id));
+      if (s) {
+        s.order_no = idx + 1;
+        reordered.push(s);
+        secMap.delete(String(id));
+      }
+    });
+    secMap.forEach(s => reordered.push(s));
+    tmpl.sections = reordered;
+    saveLocalUniversityTemplates(templates);
+    return true;
+  },
+
+  async reorderSections(templateId, orderedSectionIds) {
+    return this.reorderTemplateSections(templateId, orderedSectionIds);
+  },
+
+  // --- TEMPLATE ITEMS (CHECKS UNDER HEADINGS) CRUD ---
+  async addTemplateItem(templateId, sectionId, name, defaultNotes = '') {
+    const numTmplId = Number(templateId);
+    const numSecId = Number(sectionId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.addItem(numTmplId, numSecId, name, defaultNotes);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl || !tmpl.sections) return null;
+    const sec = tmpl.sections.find(s => Number(s.id) === numSecId || String(s.id) === String(sectionId));
+    if (!sec) return null;
+    if (!sec.items) sec.items = [];
+    const maxOrder = sec.items.reduce((max, i) => Math.max(max, i.order_no || 0), 0);
+    const newItem = {
+      id: Date.now(),
+      template_id: tmpl.id,
+      section_id: sec.id,
+      name: name.trim(),
+      default_notes: (defaultNotes || '').trim(),
+      order_no: maxOrder + 1
+    };
+    sec.items.push(newItem);
+    saveLocalUniversityTemplates(templates);
+    return newItem;
+  },
+
+  async addItemToSection(templateId, sectionId, name, defaultNotes = '') {
+    return this.addTemplateItem(templateId, sectionId, name, defaultNotes);
+  },
+
+  async updateTemplateItem(templateId, sectionId, itemId, name, defaultNotes = '') {
+    const numTmplId = Number(templateId);
+    const numSecId = Number(sectionId);
+    const numItemId = Number(itemId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.updateItem(numTmplId, numSecId, numItemId, name, defaultNotes);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl || !tmpl.sections) return false;
+    const sec = tmpl.sections.find(s => Number(s.id) === numSecId || String(s.id) === String(sectionId));
+    if (!sec || !sec.items) return false;
+    const item = sec.items.find(i => Number(i.id) === numItemId || String(i.id) === String(itemId));
+    if (item) {
+      item.name = name.trim();
+      item.default_notes = (defaultNotes || '').trim();
+      saveLocalUniversityTemplates(templates);
+      return true;
+    }
+    return false;
+  },
+
+  async updateItemInSection(templateId, sectionId, itemId, name, defaultNotes = '') {
+    return this.updateTemplateItem(templateId, sectionId, itemId, name, defaultNotes);
+  },
+
+  async deleteTemplateItem(templateId, sectionId, itemId) {
+    const numTmplId = Number(templateId);
+    const numSecId = Number(sectionId);
+    const numItemId = Number(itemId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.deleteItem(numTmplId, numSecId, numItemId);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl || !tmpl.sections) return false;
+    const sec = tmpl.sections.find(s => Number(s.id) === numSecId || String(s.id) === String(sectionId));
+    if (!sec || !sec.items) return false;
+    sec.items = sec.items.filter(i => Number(i.id) !== numItemId && String(i.id) !== String(itemId));
+    saveLocalUniversityTemplates(templates);
+    return true;
+  },
+
+  async deleteItemFromSection(templateId, sectionId, itemId) {
+    return this.deleteTemplateItem(templateId, sectionId, itemId);
+  },
+
+  async reorderTemplateItems(templateId, sectionId, orderedItemIds) {
+    const numTmplId = Number(templateId);
+    const numSecId = Number(sectionId);
+    if (window.api && window.api.universityTemplates) {
+      return await window.api.universityTemplates.reorderItems(numTmplId, numSecId, orderedItemIds);
+    }
+    const templates = getLocalUniversityTemplates();
+    const tmpl = templates.find(t => Number(t.id) === numTmplId || String(t.id) === String(templateId));
+    if (!tmpl || !tmpl.sections) return false;
+    const sec = tmpl.sections.find(s => Number(s.id) === numSecId || String(s.id) === String(sectionId));
+    if (!sec || !sec.items) return false;
+    const itemMap = new Map(sec.items.map(i => [String(i.id), i]));
+    const reordered = [];
+    orderedItemIds.forEach((id, idx) => {
+      const it = itemMap.get(String(id));
+      if (it) {
+        it.order_no = idx + 1;
+        reordered.push(it);
+        itemMap.delete(String(id));
+      }
+    });
+    itemMap.forEach(it => reordered.push(it));
+    sec.items = reordered;
+    saveLocalUniversityTemplates(templates);
+    return true;
+  },
+
+  async reorderItemsInSection(templateId, sectionId, orderedItemIds) {
+    return this.reorderTemplateItems(templateId, sectionId, orderedItemIds);
+  },
+
   // --- SESSIONS ---
   async getSessions(searchQuery = '', dateFilter = '', statusFilter = 'ALL', vertical = '') {
     if (window.api && window.api.sessions) {
@@ -623,29 +827,25 @@ export const StorageService = {
     return true;
   },
 
-  async duplicateSession(id, newProjectName) {
+  async duplicateSession(id, newProjectName = '') {
     const numId = Number(id);
     if (window.api && window.api.sessions) {
       return await window.api.sessions.duplicateSession(numId, newProjectName);
     }
 
-    const original = await this.getSessionById(numId);
-    if (!original) return null;
+    const sessions = getLocalSessions();
+    const source = sessions.find(s => s.id === numId);
+    if (!source) return null;
 
     const newId = Date.now();
     const newSession = {
+      ...JSON.parse(JSON.stringify(source)),
       id: newId,
-      project_name: newProjectName || `${original.project_name} (Copy)`,
-      university_name: original.university_name || 'Standard QA Sanity Suite',
-      template_id: original.template_id || 1,
-      tester_name: original.tester_name,
-      environment: original.environment || 'QA',
+      project_name: newProjectName && newProjectName.trim() ? newProjectName.trim() : `${source.project_name} (Copy)`,
       status: 'In Progress',
-      vertical: original.vertical || 'acquisition',
-      notes: original.notes || '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      items: (original.items || []).map((item, idx) => ({
+      items: (source.items || []).map((item, idx) => ({
         ...item,
         id: newId + idx + 1,
         session_id: newId,
@@ -654,30 +854,41 @@ export const StorageService = {
       }))
     };
 
-    const sessions = getLocalSessions();
     sessions.unshift(newSession);
     saveLocalSessions(sessions);
     return newSession;
   },
 
-  // --- ITEMS ---
-  async updateItem(sessionId, itemId, data) {
-    const numSessionId = Number(sessionId);
-    const numItemId = Number(itemId);
+  // --- SESSION CHECKLIST ITEMS ---
+  async updateItem(arg1, arg2, arg3) {
+    let numSessionId = null;
+    let numItemId = null;
+    let data = null;
+
+    if (arg3 !== undefined) {
+      numSessionId = Number(arg1);
+      numItemId = Number(arg2);
+      data = arg3;
+    } else {
+      numItemId = Number(arg1);
+      data = arg2;
+    }
 
     if (window.api && window.api.items) {
       return await window.api.items.updateItem(numItemId, data);
     }
 
     const sessions = getLocalSessions();
-    const session = sessions.find(s => s.id === numSessionId);
-    if (session && session.items) {
-      const item = session.items.find(i => i.id === numItemId);
-      if (item) {
-        Object.assign(item, data, { updated_at: new Date().toISOString() });
-        this._updateSessionStatus(session);
-        saveLocalSessions(sessions);
-        return true;
+    for (const session of sessions) {
+      if (numSessionId && session.id !== numSessionId) continue;
+      if (session && session.items) {
+        const item = session.items.find(i => i.id === numItemId);
+        if (item) {
+          Object.assign(item, data, { updated_at: new Date().toISOString() });
+          this._updateSessionStatus(session);
+          saveLocalSessions(sessions);
+          return true;
+        }
       }
     }
     return false;
@@ -715,21 +926,37 @@ export const StorageService = {
     return null;
   },
 
-  async deleteItem(sessionId, itemId) {
-    const numSessionId = Number(sessionId);
-    const numItemId = Number(itemId);
+  async addItemToSession(sessionId, itemName, sectionTitle = 'General Sanity Checks', notes = '') {
+    return this.addItem(sessionId, itemName, sectionTitle, notes);
+  },
+
+  async deleteItem(arg1, arg2) {
+    let numSessionId = null;
+    let numItemId = null;
+
+    if (arg2 !== undefined) {
+      numSessionId = Number(arg1);
+      numItemId = Number(arg2);
+    } else {
+      numItemId = Number(arg1);
+    }
 
     if (window.api && window.api.items) {
       return await window.api.items.deleteItem(numItemId);
     }
 
     const sessions = getLocalSessions();
-    const session = sessions.find(s => s.id === numSessionId);
-    if (session && session.items) {
-      session.items = session.items.filter(i => i.id !== numItemId);
-      this._updateSessionStatus(session);
-      saveLocalSessions(sessions);
-      return true;
+    for (const session of sessions) {
+      if (numSessionId && session.id !== numSessionId) continue;
+      if (session && session.items) {
+        const idx = session.items.findIndex(i => i.id === numItemId);
+        if (idx !== -1) {
+          session.items.splice(idx, 1);
+          this._updateSessionStatus(session);
+          saveLocalSessions(sessions);
+          return true;
+        }
+      }
     }
     return false;
   },

@@ -870,29 +870,32 @@ class DatabaseManager {
 
   // --- SECTION HEADERS CRUD ---
   addSectionToTemplate(templateId, title) {
+    const numTemplateId = Number(templateId);
     const maxStmt = this.db.prepare("SELECT MAX(order_no) as max_order FROM TemplateSections WHERE template_id = ?");
-    maxStmt.bind([templateId]);
+    maxStmt.bind([numTemplateId]);
     maxStmt.step();
     const maxOrder = (maxStmt.getAsObject().max_order || 0) + 1;
     maxStmt.free();
 
     const stmt = this.db.prepare("INSERT INTO TemplateSections (template_id, title, order_no) VALUES (?, ?, ?)");
-    stmt.run([templateId, title.trim(), maxOrder]);
+    stmt.run([numTemplateId, title.trim(), maxOrder]);
     stmt.free();
 
     const secId = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this.saveToDisk();
-    return { id: secId, template_id: templateId, title: title.trim(), order_no: maxOrder, items: [] };
+    return { id: secId, template_id: numTemplateId, title: title.trim(), order_no: maxOrder, items: [] };
   }
 
   updateSectionInTemplate(templateId, sectionId, title) {
+    const numTemplateId = Number(templateId);
+    const numSectionId = Number(sectionId);
     const stmt = this.db.prepare("UPDATE TemplateSections SET title = ? WHERE id = ? AND template_id = ?");
-    stmt.run([title.trim(), sectionId, templateId]);
+    stmt.run([title.trim(), numSectionId, numTemplateId]);
     stmt.free();
 
     // Also update section_title on items
     const itemStmt = this.db.prepare("UPDATE GlobalChecklist SET section_title = ?, category = ? WHERE section_id = ?");
-    itemStmt.run([title.trim(), title.trim(), sectionId]);
+    itemStmt.run([title.trim(), title.trim(), numSectionId]);
     itemStmt.free();
 
     this.saveToDisk();
@@ -900,16 +903,19 @@ class DatabaseManager {
   }
 
   deleteSectionFromTemplate(templateId, sectionId) {
-    this.db.run("DELETE FROM GlobalChecklist WHERE section_id = ?", [sectionId]);
-    this.db.run("DELETE FROM TemplateSections WHERE id = ? AND template_id = ?", [sectionId, templateId]);
+    const numTemplateId = Number(templateId);
+    const numSectionId = Number(sectionId);
+    this.db.run("DELETE FROM GlobalChecklist WHERE section_id = ?", [numSectionId]);
+    this.db.run("DELETE FROM TemplateSections WHERE id = ? AND template_id = ?", [numSectionId, numTemplateId]);
     this.saveToDisk();
     return true;
   }
 
   reorderSections(templateId, orderedSectionIds) {
+    const numTemplateId = Number(templateId);
     const stmt = this.db.prepare("UPDATE TemplateSections SET order_no = ? WHERE id = ? AND template_id = ?");
     orderedSectionIds.forEach((secId, idx) => {
-      stmt.run([idx + 1, secId, templateId]);
+      stmt.run([idx + 1, Number(secId), numTemplateId]);
     });
     stmt.free();
     this.saveToDisk();
@@ -918,9 +924,12 @@ class DatabaseManager {
 
   // --- GLOBAL CHECKLIST ITEMS (Inside Sections) CRUD ---
   addItemToSection(templateId, sectionId, name, defaultNotes = '') {
+    const numTemplateId = Number(templateId);
+    const numSectionId = Number(sectionId);
+
     // Look up section title
     const secStmt = this.db.prepare("SELECT title FROM TemplateSections WHERE id = ?");
-    secStmt.bind([sectionId]);
+    secStmt.bind([numSectionId]);
     let secTitle = 'General';
     if (secStmt.step()) {
       secTitle = secStmt.getAsObject().title;
@@ -928,7 +937,7 @@ class DatabaseManager {
     secStmt.free();
 
     const maxStmt = this.db.prepare("SELECT MAX(order_no) as max_order FROM GlobalChecklist WHERE section_id = ?");
-    maxStmt.bind([sectionId]);
+    maxStmt.bind([numSectionId]);
     maxStmt.step();
     const maxOrder = (maxStmt.getAsObject().max_order || 0) + 1;
     maxStmt.free();
@@ -936,15 +945,15 @@ class DatabaseManager {
     const stmt = this.db.prepare(
       "INSERT INTO GlobalChecklist (template_id, section_id, section_title, name, category, order_no, default_notes) VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
-    stmt.run([templateId, sectionId, secTitle, name.trim(), secTitle, maxOrder, defaultNotes.trim()]);
+    stmt.run([numTemplateId, numSectionId, secTitle, name.trim(), secTitle, maxOrder, defaultNotes.trim()]);
     stmt.free();
 
     const itemId = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this.saveToDisk();
     return {
       id: itemId,
-      template_id: templateId,
-      section_id: sectionId,
+      template_id: numTemplateId,
+      section_id: numSectionId,
       section_title: secTitle,
       name: name.trim(),
       category: secTitle,
@@ -954,15 +963,17 @@ class DatabaseManager {
   }
 
   updateItemInSection(templateId, sectionId, itemId, name, defaultNotes = '') {
+    const numItemId = Number(itemId);
     const stmt = this.db.prepare("UPDATE GlobalChecklist SET name = ?, default_notes = ? WHERE id = ?");
-    stmt.run([name.trim(), defaultNotes.trim(), itemId]);
+    stmt.run([name.trim(), defaultNotes.trim(), numItemId]);
     stmt.free();
     this.saveToDisk();
     return true;
   }
 
   deleteItemFromSection(templateId, sectionId, itemId) {
-    this.db.run("DELETE FROM GlobalChecklist WHERE id = ?", [itemId]);
+    const numItemId = Number(itemId);
+    this.db.run("DELETE FROM GlobalChecklist WHERE id = ?", [numItemId]);
     this.saveToDisk();
     return true;
   }
@@ -970,7 +981,7 @@ class DatabaseManager {
   reorderItemsInSection(templateId, sectionId, orderedItemIds) {
     const stmt = this.db.prepare("UPDATE GlobalChecklist SET order_no = ? WHERE id = ?");
     orderedItemIds.forEach((itemId, idx) => {
-      stmt.run([idx + 1, itemId]);
+      stmt.run([idx + 1, Number(itemId)]);
     });
     stmt.free();
     this.saveToDisk();
