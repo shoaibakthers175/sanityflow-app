@@ -271,8 +271,14 @@ function getLocalUniversityTemplates() {
   return DEFAULT_UNIVERSITY_TEMPLATES;
 }
 
-function saveLocalUniversityTemplates(templates) {
-  localStorage.setItem('sanityflow_university_templates', JSON.stringify(templates));
+function saveLocalUniversityTemplates(templates, forVertical = '') {
+  if (!forVertical || forVertical === 'all') {
+    localStorage.setItem('sanityflow_university_templates', JSON.stringify(templates));
+  } else {
+    const existing = getLocalUniversityTemplates();
+    const otherVerticals = existing.filter(t => (t.vertical || '').toLowerCase() !== forVertical.toLowerCase());
+    localStorage.setItem('sanityflow_university_templates', JSON.stringify([...otherVerticals, ...templates]));
+  }
 }
 
 function getLocalUsers() {
@@ -444,12 +450,12 @@ export const StorageService = {
     const query = vertical && vertical !== 'all' ? `?vertical=${encodeURIComponent(vertical)}` : '';
     const apiRes = await apiFetch(`/api/templates${query}`);
     if (apiRes && Array.isArray(apiRes)) {
-      saveLocalUniversityTemplates(apiRes);
+      saveLocalUniversityTemplates(apiRes, vertical);
       return apiRes;
     }
     const templates = getLocalUniversityTemplates();
     if (vertical && vertical !== 'all') {
-      return templates.filter(t => (t.vertical || 'acquisition').toLowerCase() === vertical.toLowerCase());
+      return templates.filter(t => (t.vertical || 'acquisition').toLowerCase() === vertical.toLowerCase() || (t.vertical || '').toLowerCase() === 'all');
     }
     return templates;
   },

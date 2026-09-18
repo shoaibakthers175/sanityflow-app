@@ -665,7 +665,7 @@ class DatabaseManager {
     let sql = "SELECT * FROM UniversityTemplates";
     const params = [];
     if (vertical && vertical !== 'all') {
-      sql += " WHERE LOWER(vertical) = LOWER(?)";
+      sql += " WHERE (LOWER(vertical) = LOWER(?) OR LOWER(vertical) = 'all')";
       params.push(vertical);
     }
     sql += " ORDER BY is_default DESC, id ASC";

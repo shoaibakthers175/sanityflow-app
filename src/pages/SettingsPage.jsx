@@ -201,6 +201,10 @@ export default function SettingsPage() {
       setNewUniName('');
       setNewUniDesc('');
       setShowNewUniModal(false);
+      if (selectedVerticalFilter !== newUniVertical && selectedVerticalFilter !== 'all') {
+        setSelectedVerticalFilter(newUniVertical);
+      }
+      setSelectedTemplateId(created.id);
       await loadTemplates(created.id);
     } catch (err) {
       showToast('Error creating template: ' + err.message, 'error');
@@ -738,6 +742,17 @@ export default function SettingsPage() {
                 <Download className="w-3.5 h-3.5" />
                 <span>Export JSON</span>
               </button>
+              <button
+                onClick={() => {
+                  showToast('Syncing templates with server...', 'info');
+                  loadTemplates(selectedTemplateId);
+                }}
+                title="Sync and refresh templates from server"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 border border-surface-200 dark:border-surface-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
+                <span>Sync Now</span>
+              </button>
 
               <button
                 onClick={() => setShowNewUniModal(true)}
@@ -749,47 +764,45 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Admin Vertical Scope Switcher */}
-          {user?.role === 'admin' && (
-            <div className="flex items-center gap-2 p-2 rounded-2xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700/60 overflow-x-auto">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-surface-500 dark:text-surface-400 px-2 flex items-center gap-1.5 flex-shrink-0">
-                <Building2 className="w-3.5 h-3.5 text-brand-500" />
-                <span>Scope Vertical:</span>
-              </span>
-              {VERTICAL_DEFINITIONS.map(v => (
-                <button
-                  key={v.key}
-                  onClick={() => {
-                    setSelectedVerticalFilter(v.key);
-                    setNewUniVertical(v.key);
-                    setSelectedTemplateId(null);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
-                    selectedVerticalFilter === v.key
-                      ? 'bg-brand-600 text-white shadow-xs'
-                      : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-850'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                  <span>{v.label}</span>
-                </button>
-              ))}
+          {/* Vertical Scope Switcher */}
+          <div className="flex items-center gap-2 p-2 rounded-2xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700/60 overflow-x-auto">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-surface-500 dark:text-surface-400 px-2 flex items-center gap-1.5 flex-shrink-0">
+              <Building2 className="w-3.5 h-3.5 text-brand-500" />
+              <span>Scope Vertical:</span>
+            </span>
+            {VERTICAL_DEFINITIONS.map(v => (
               <button
+                key={v.key}
                 onClick={() => {
-                  setSelectedVerticalFilter('all');
-                  setNewUniVertical('acquisition');
+                  setSelectedVerticalFilter(v.key);
+                  setNewUniVertical(v.key);
                   setSelectedTemplateId(null);
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex-shrink-0 ${
-                  selectedVerticalFilter === 'all'
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+                  selectedVerticalFilter === v.key
                     ? 'bg-brand-600 text-white shadow-xs'
                     : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-850'
                 }`}
               >
-                <span>All Verticals View</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                <span>{v.label}</span>
               </button>
-            </div>
-          )}
+            ))}
+            <button
+              onClick={() => {
+                setSelectedVerticalFilter('all');
+                setNewUniVertical('acquisition');
+                setSelectedTemplateId(null);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex-shrink-0 ${
+                selectedVerticalFilter === 'all'
+                  ? 'bg-brand-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-850'
+              }`}
+            >
+              <span>All Verticals View ({templates.length})</span>
+            </button>
+          </div>
 
           {/* Template Selector Pills */}
           {templates.length > 0 ? (
