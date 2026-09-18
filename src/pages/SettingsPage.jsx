@@ -254,6 +254,55 @@ export default function SettingsPage() {
     }
   };
 
+  const handleExportJSON = async () => {
+    try {
+      const allTemplates = await StorageService.getUniversityTemplates('');
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allTemplates, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `sanityflow_templates_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('Templates exported to JSON file!', 'success');
+    } catch (err) {
+      showToast('Error exporting templates: ' + err.message, 'error');
+    }
+  };
+
+  const handleImportJSON = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      if (!Array.isArray(imported)) {
+        showToast('Invalid JSON file: Expected an array of templates', 'error');
+        return;
+      }
+      showToast('Importing templates...', 'info');
+      for (const t of imported) {
+        const created = await StorageService.createUniversityTemplate(t.name, t.description || '', t.guidelines || null, t.vertical || 'acquisition');
+        if (t.sections && Array.isArray(t.sections)) {
+          for (const sec of t.sections) {
+            const newSec = await StorageService.addTemplateSection(created.id, sec.title);
+            if (newSec && sec.items && Array.isArray(sec.items)) {
+              for (const item of sec.items) {
+                await StorageService.addTemplateItem(created.id, newSec.id, item.name, item.default_notes || '');
+              }
+            }
+          }
+        }
+      }
+      showToast('Templates imported successfully!', 'success');
+      await loadTemplates();
+    } catch (err) {
+      showToast('Error importing templates: ' + err.message, 'error');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
   // --- SECTION HEADERS ACTIONS ---
   const handleAddSection = async (e) => {
     e.preventDefault();
@@ -377,17 +426,7 @@ export default function SettingsPage() {
     await loadTemplates(currentTemplate.id);
   };
 
-  // Export JSON
-  const handleExportJSON = () => {
-    const jsonStr = JSON.stringify(templates, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `SanityFlow_${effectiveVertical || 'All'}_Templates_${Date.now()}.json`;
-    link.click();
-    showToast('Templates exported as JSON!', 'success');
-  };
+
 
   // --- ADMIN USER ACTIONS ---
   const handleCreateUser = async (e) => {
@@ -736,12 +775,26 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleExportJSON}
-                title="Export all templates"
+                title="Export all templates as JSON"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 border border-surface-200 dark:border-surface-700 text-xs font-semibold transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export JSON</span>
               </button>
+
+              <label
+                title="Import templates from JSON"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 border border-surface-200 dark:border-surface-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5 text-brand-500" />
+                <span>Import JSON</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportJSON}
+                  className="hidden"
+                />
+              </label>
               <button
                 onClick={() => {
                   showToast('Syncing templates with server...', 'info');
