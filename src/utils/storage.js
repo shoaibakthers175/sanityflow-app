@@ -295,10 +295,31 @@ function saveLocalUsers(users) {
   localStorage.setItem('sanityflow_users_list', JSON.stringify(users));
 }
 
+export function getApiBaseUrl() {
+  const customUrl = localStorage.getItem('sanityflow_server_url');
+  if (customUrl && customUrl.trim()) {
+    return customUrl.trim().replace(/\/+$/, '');
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
+  }
+  return '';
+}
+
+export function setApiBaseUrl(url) {
+  if (!url || !url.trim()) {
+    localStorage.removeItem('sanityflow_server_url');
+  } else {
+    localStorage.setItem('sanityflow_server_url', url.trim().replace(/\/+$/, ''));
+  }
+}
+
 // HTTP Fetch wrapper for real-time multi-device server synchronization
-async function apiFetch(endpoint, options = {}) {
+export async function apiFetch(endpoint, options = {}) {
   try {
-    const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const baseUrl = getApiBaseUrl();
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = baseUrl ? `${baseUrl}${cleanEndpoint}` : cleanEndpoint;
     const res = await fetch(url, {
       ...options,
       headers: {
@@ -313,6 +334,18 @@ async function apiFetch(endpoint, options = {}) {
     // Network offline / fallback to local storage
   }
   return null;
+}
+
+export async function checkServerConnection() {
+  try {
+    const baseUrl = getApiBaseUrl();
+    const cleanEndpoint = '/api/stats';
+    const url = baseUrl ? `${baseUrl}${cleanEndpoint}` : cleanEndpoint;
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export const StorageService = {

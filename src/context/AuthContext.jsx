@@ -56,13 +56,11 @@ export function AuthProvider({ children }) {
     } else {
       // Real-time Centralized Server Login for multi-device sync
       try {
-        const res = await fetch('/api/auth/login', {
+        const apiResult = await apiFetch('/api/auth/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: trimmedUser, password: trimmedPass })
         });
-        if (res.ok) {
-          const apiResult = await res.json();
+        if (apiResult) {
           if (apiResult.success) {
             setUser(apiResult.user);
             setActiveVertical(apiResult.user.vertical || 'acquisition');
